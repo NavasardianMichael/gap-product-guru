@@ -35,6 +35,7 @@ function dispatchEvent(event: string, handlers: ChatStreamHandlers): boolean {
     if ('sources' in frame) handlers.onSources(frame.sources);
     if ('delta' in frame) handlers.onDelta(frame.delta);
     if ('notice' in frame) handlers.onNotice(frame.notice);
+    if ('answerId' in frame) handlers.onAnswerId(frame.answerId);
     if ('conversation' in frame) handlers.onConversation(frame.conversation);
   }
   return false;

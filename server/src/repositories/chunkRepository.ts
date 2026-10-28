@@ -61,7 +61,12 @@ export const chunkRepository = {
    * Exact nearest-neighbour search by cosine distance (`<=>`). No ANN index on purpose: a few
    * thousand 768-dim vectors scan in milliseconds — see docs/DATABASE.md before adding HNSW.
    */
-  async searchSimilar(embedding: number[], limit: number): Promise<RetrievedChunk[]> {
+  /** `area` (documents.area) limits the search to one docs area; omit it to search everything. */
+  async searchSimilar(
+    embedding: number[],
+    limit: number,
+    area?: string,
+  ): Promise<RetrievedChunk[]> {
     const vector = toVectorLiteral(embedding);
     return prisma.$queryRaw<RetrievedChunk[]>`
       SELECT d.path, d.title, c.heading, c.content,
@@ -69,6 +74,7 @@ export const chunkRepository = {
       FROM chunks c
       JOIN documents d ON d.id = c.document_id
       WHERE c.embedding IS NOT NULL
+        AND (${area ?? null}::text IS NULL OR d.area = ${area ?? null}::text)
       ORDER BY c.embedding <=> ${vector}::vector
       LIMIT ${limit}`;
   },

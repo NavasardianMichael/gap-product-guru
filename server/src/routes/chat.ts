@@ -83,7 +83,7 @@ async function pumpChatStream(
 // POST /api/chat — answer a question over SSE
 router.post('/', chatLimiter, validate(chatRequestSchema), async (req, res, next) => {
   try {
-    const { conversationId, message } = req.body as ChatRequest;
+    const { conversationId, message, area, replyTo, replyToId } = req.body as ChatRequest;
     const clientId = req.clientId!;
 
     // Checked before any SSE header, so a bad id is a normal JSON 404 rather than a stream error.
@@ -91,7 +91,14 @@ router.post('/', chatLimiter, validate(chatRequestSchema), async (req, res, next
       await conversationService.assertOwned(conversationId, clientId);
     }
 
-    await pumpChatStream(res, { clientId, conversationId, message });
+    await pumpChatStream(res, {
+      clientId,
+      conversationId,
+      message,
+      area,
+      replyTo,
+      replyToId,
+    });
   } catch (error) {
     next(error);
   }

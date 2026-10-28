@@ -136,7 +136,10 @@ function checkShellCommand(command, cwd, projectDir) {
 
   for (const segment of command.split(/&&|\|\||[;|\n]/)) {
     // Skip `VAR=value` prefixes to reach the command name
-    const words = segment.trim().split(/\s+/).filter((word) => !/^\w+=/.test(word));
+    const words = segment
+      .trim()
+      .split(/\s+/)
+      .filter((word) => !/^\w+=/.test(word));
     const commandName = (words[0] ?? '').replace(/^["']|["']$/g, '').toLowerCase();
 
     if (CHANGE_DIRECTORY_COMMANDS.has(commandName)) {

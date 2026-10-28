@@ -63,22 +63,26 @@ Details: [RETRIEVAL_AND_PROMPTING.md](./RETRIEVAL_AND_PROMPTING.md),
 
 ## Components
 
-| Piece              | Where                                                  | Notes                                            |
-| ------------------ | ------------------------------------------------------ | ------------------------------------------------ |
-| Chunker            | `server/src/ingest/markdownChunker.ts`                 | Pure, unit-tested                                |
-| Ingest CLI         | `server/src/ingest/index.ts`                           | `--dry-run` for stats                            |
-| Gemini wrapper     | `server/src/lib/gemini.ts`                             | Client, embeddings, config, error mapping        |
-| Vector SQL         | `server/src/repositories/chunkRepository.ts`           | Raw SQL — Prisma can't model `vector`            |
-| Prompt building    | `server/src/services/chatPrompts.ts`                   | Everything the model sees                        |
-| Chat stream        | `server/src/services/chatService.ts`, `routes/chat.ts` | Async generator → SSE                            |
-| Conversations      | `server/src/services/conversationService.ts`           | Scoped by anonymous client id                    |
-| SSE client         | `client/src/api/chat/index.ts`                         | fetch + ReadableStream (POST, so no EventSource) |
-| Chat orchestration | `client/src/hooks/useChat.ts`                          | URL ↔ conversation, ask/stop/retry               |
+| Piece              | Where                                                                  | Notes                                            |
+| ------------------ | ---------------------------------------------------------------------- | ------------------------------------------------ |
+| Chunker            | `server/src/ingest/markdownChunker.ts`                                 | Pure, unit-tested                                |
+| Ingest CLI         | `server/src/ingest/index.ts`                                           | `--dry-run` for stats                            |
+| Gemini wrapper     | `server/src/lib/gemini.ts`                                             | Client, embeddings, config, error mapping        |
+| Vector SQL         | `server/src/repositories/chunkRepository.ts`                           | Raw SQL — Prisma can't model `vector`            |
+| Prompt building    | `server/src/services/chatPrompts.ts`                                   | Everything the model sees                        |
+| Chat stream        | `server/src/services/chatService.ts`, `routes/chat.ts`                 | Async generator → SSE                            |
+| Conversations      | `server/src/services/conversationService.ts`                           | Scoped by anonymous client id                    |
+| Feedback / admin   | `services/feedbackService.ts`, `routes/messages.ts`, `routes/admin.ts` | 👍 / reports; open admin API                     |
+| Share links        | `services/shareService.ts`, `routes/shares.ts`                         | Snapshot links, "continue" copies them           |
+| Product areas      | `lib/docAreas.ts`, `services/docsService.ts`                           | Top-level wiki sections for the filter           |
+| SSE client         | `client/src/api/chat/index.ts`                                         | fetch + ReadableStream (POST, so no EventSource) |
+| Chat orchestration | `client/src/hooks/useChat.ts`                                          | URL ↔ conversation, ask/stop/retry               |
 
 ## Data model
 
 `documents` 1—n `chunks` (with `embedding vector(768)`), `conversations` 1—n `messages`.
 Messages are stored as user/assistant pairs; assistant messages keep the sources they cited.
+`message_feedback` and `shared_conversations` keep their own copies of the content they refer to.
 See [DATABASE.md](./DATABASE.md).
 
 ## Identity

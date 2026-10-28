@@ -25,8 +25,19 @@ Rules:
 - Highlight key parts of answer`;
 }
 
-/** The current question plus its retrieved sources, as the final user turn. */
-export function buildUserPrompt(question: string, chunks: RetrievedChunk[]): string {
+/** A reply's quote, placed before the question it belongs to. */
+function withReplyQuote(question: string, replyTo: string | null | undefined): string {
+  if (!replyTo) return question;
+  const quote = replyTo.replace(CITATION_PATTERN, '');
+  return `The user is replying to this part of an earlier answer:\n<quote>\n${quote}\n</quote>\n\n${question}`;
+}
+
+/** The current question (and the quote it replies to) plus its retrieved sources, as the final user turn. */
+export function buildUserPrompt(
+  question: string,
+  chunks: RetrievedChunk[],
+  replyTo?: string,
+): string {
   const sources = chunks
     .map(
       (chunk, index) =>
@@ -34,7 +45,7 @@ export function buildUserPrompt(question: string, chunks: RetrievedChunk[]): str
     )
     .join('\n\n');
 
-  return `<sources>\n${sources}\n</sources>\n\nQuestion: ${question}`;
+  return `<sources>\n${sources}\n</sources>\n\nQuestion: ${withReplyQuote(question, replyTo)}`;
 }
 
 /**
@@ -46,15 +57,22 @@ export function buildHistoryContents(history: Message[]): Content[] {
   return history.map((message) =>
     message.role === 'assistant'
       ? { role: 'model', parts: [{ text: message.content.replace(CITATION_PATTERN, '') }] }
-      : { role: 'user', parts: [{ text: message.content }] },
+      : { role: 'user', parts: [{ text: withReplyQuote(message.content, message.replyTo) }] },
   );
 }
 
 /**
- * Text to embed for retrieval. A short follow-up rarely names its topic, so it is prefixed
- * with the previous question — a free alternative to an extra "rewrite the question" LLM call.
+ * Text to embed for retrieval. A reply is searched together with the part it quotes. A short
+ * follow-up rarely names its topic, so it is prefixed with the previous question — a free
+ * alternative to an extra "rewrite the question" LLM call.
  */
-export function buildRetrievalQuery(question: string, history: Message[]): string {
+export function buildRetrievalQuery(
+  question: string,
+  history: Message[],
+  replyTo?: string,
+): string {
+  if (replyTo) return `${replyTo.replace(CITATION_PATTERN, '')}\n${question}`;
+
   const previousQuestion = history.findLast((message) => message.role === 'user')?.content;
   const isShortFollowUp = question.trim().split(/\s+/).length < FOLLOW_UP_MAX_WORDS;
   return previousQuestion && isShortFollowUp ? `${previousQuestion}\n${question}` : question;

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { type ChatMessageDto, MESSAGE_ROLES } from '@gap-product-guru/shared';
 import { App } from 'antd';
 import { streamChat } from '@/api/chat';
 import { fetchConversation } from '@/api/conversations';
@@ -12,19 +11,21 @@ import {
   selectSetConversationId,
   selectSetError,
   selectSetLoadStatus,
+  selectSetReplyTo,
   selectSetStage,
   selectShowConversation,
   selectStartTurn,
   selectUpdateLastTurn,
 } from '@/store/chat/selectors';
 import { useChatStore } from '@/store/chat/store';
-import { type ChatError, type ChatTurn, TURN_STATUSES } from '@/store/chat/types';
+import { type ChatError, type ReplyTarget, TURN_STATUSES } from '@/store/chat/types';
 import { selectUpsertConversation } from '@/store/conversations/selectors';
 import { useConversationsStore } from '@/store/conversations/store';
 import { CHAT_COPY, ERROR_COPY, NETWORK_ERROR_CODE } from '@/constants/chat';
 import { IDLE_STATUSES } from '@/constants/loadingStatus';
 import { getConversationRoute, ROUTES } from '@/constants/routes';
 import { ApiRequestError, isAbortError } from '@/helpers/error';
+import { toTurns } from '@/helpers/turns';
 
 type UseChatReturn = {
   ask: (question: string) => void;
@@ -33,30 +34,6 @@ type UseChatReturn = {
   startNewChat: () => void;
   isStreaming: boolean;
 };
-
-/** Stored messages always come in user → assistant pairs; fold them into turns. */
-function toTurns(messages: ChatMessageDto[]): ChatTurn[] {
-  const turns: ChatTurn[] = [];
-  for (const message of messages) {
-    if (message.role === MESSAGE_ROLES.user) {
-      turns.push({
-        id: message.id,
-        question: message.content,
-        answer: '',
-        sources: [],
-        notice: null,
-        status: TURN_STATUSES.done,
-      });
-      continue;
-    }
-    const turn = turns.at(-1);
-    if (turn) {
-      turn.answer = message.content;
-      turn.sources = message.sources;
-    }
-  }
-  return turns;
-}
 
 function toChatError(error: unknown): ChatError {
   if (error instanceof ApiRequestError) {
@@ -86,6 +63,7 @@ export const useChat = (routeConversationId: string | undefined): UseChatReturn 
   const removeLastTurn = useChatStore(selectRemoveLastTurn);
   const setStage = useChatStore(selectSetStage);
   const setError = useChatStore(selectSetError);
+  const setReplyTo = useChatStore(selectSetReplyTo);
   const upsertConversation = useConversationsStore(selectUpsertConversation);
 
   // ─── Follow the URL ───
@@ -119,24 +97,32 @@ export const useChat = (routeConversationId: string | undefined): UseChatReturn 
 
   // ─── Ask ───
   const askAsync = useCallback(
-    async (question: string) => {
+    async (question: string, replyTo: ReplyTarget | null) => {
       const trimmed = question.trim();
       if (!trimmed || abortRef.current) return;
 
       const controller = new AbortController();
       abortRef.current = controller;
-      const startedIn = useChatStore.getState().conversationId;
+      const { conversationId: startedIn, area } = useChatStore.getState();
       setError(null);
-      startTurn(trimmed);
+      setReplyTo(null);
+      startTurn(trimmed, replyTo);
 
       try {
         await streamChat(
-          { message: trimmed, ...(startedIn && { conversationId: startedIn }) },
+          {
+            message: trimmed,
+            ...(startedIn && { conversationId: startedIn }),
+            ...(area && { area }),
+            ...(replyTo && { replyTo: replyTo.quote }),
+            ...(replyTo?.answerId && { replyToId: replyTo.answerId }),
+          },
           {
             onStatus: setStage,
             onSources: (sources) => updateLastTurn({ sources }),
             onDelta: appendToLastTurn,
             onNotice: (notice) => updateLastTurn({ notice }),
+            onAnswerId: (answerId) => updateLastTurn({ answerId }),
             onConversation: (conversation) => {
               upsertConversation(conversation);
               if (startedIn) return;
@@ -165,6 +151,7 @@ export const useChat = (routeConversationId: string | undefined): UseChatReturn 
       navigate,
       setConversationId,
       setError,
+      setReplyTo,
       setStage,
       startTurn,
       updateLastTurn,
@@ -172,9 +159,10 @@ export const useChat = (routeConversationId: string | undefined): UseChatReturn 
     ],
   );
 
+  /** Sends a question; it replies to the quote shown above the composer, if any. */
   const ask = useCallback(
     (question: string) => {
-      void askAsync(question);
+      void askAsync(question, useChatStore.getState().replyTo);
     },
     [askAsync],
   );
@@ -188,8 +176,9 @@ export const useChat = (routeConversationId: string | undefined): UseChatReturn 
     const lastTurn = useChatStore.getState().turns.at(-1);
     if (!lastTurn) return;
     removeLastTurn();
-    ask(lastTurn.question);
-  }, [ask, removeLastTurn]);
+    const reply = lastTurn.replyTo && { quote: lastTurn.replyTo, answerId: lastTurn.replyToId };
+    void askAsync(lastTurn.question, reply || null);
+  }, [askAsync, removeLastTurn]);
 
   const startNewChat = useCallback(() => {
     abortRef.current?.abort();

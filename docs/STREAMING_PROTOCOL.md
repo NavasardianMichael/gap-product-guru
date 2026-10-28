@@ -13,7 +13,13 @@ POST /api/chat
 Content-Type: application/json
 X-Client-Id: 3f0c…-uuid        # anonymous per-browser id
 
-{ "conversationId": "uuid (optional — omit to start a new chat)", "message": "1–4000 chars" }
+{
+  "conversationId": "uuid (optional — omit to start a new chat)",
+  "message": "1–4000 chars",
+  "area": "docs area key (optional — omit to search all products)",
+  "replyTo": "quoted part of an earlier answer, 1–2000 chars (optional)",
+  "replyToId": "uuid of the answer it was quoted from (optional)"
+}
 ```
 
 It is a POST (the question can be long), so the browser's `EventSource` cannot be used — the client
@@ -41,7 +47,8 @@ Each event is one line `data: <payload>` followed by a blank line. Exactly one k
 | `{"status":"generating"}`                          | Before calling Gemini                                        |
 | `{"delta":"text"}`                                 | Many — append in order                                       |
 | `{"notice":"text"}`                                | Optional — Gemini stopped early (length, safety, recitation) |
-| `{"conversation":{id,title,updatedAt}}`            | The turn was saved; carries the new id for a new chat        |
+| `{"answerId":"uuid"}`                              | The turn was saved — id of the assistant message (feedback)  |
+| `{"conversation":{id,title,updatedAt}}`            | Right after `answerId`; carries the new id for a new chat    |
 | `[DONE]` (literal, not JSON)                       | Success — last frame                                         |
 | `{"error":{code,message,retryAfterSeconds?}}`      | Failure after headers were sent — last frame (no `[DONE]`)   |
 

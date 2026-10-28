@@ -1,9 +1,36 @@
+import { randomUUID } from 'node:crypto';
 import { type ChatSource } from '@gap-product-guru/shared';
 
 import { prisma } from '@/db/index.js';
-import { type Conversation, type Message } from '@/generated/prisma/client.js';
+import {
+  type Conversation,
+  type Message,
+  type MessageFeedback,
+  type MessageRole,
+} from '@/generated/prisma/client.js';
 
-export type ConversationWithMessages = Conversation & { messages: Message[] };
+/** `feedback` holds only the requesting browser's own feedback (0 or 1 row). */
+export type MessageWithFeedback = Message & {
+  feedback: Pick<MessageFeedback, 'rating' | 'note'>[];
+};
+
+export type ConversationWithMessages = Conversation & { messages: MessageWithFeedback[] };
+
+export type SavedTurn = {
+  conversation: Conversation;
+  /** Id of the stored assistant message. */
+  answerId: string;
+};
+
+export type MessageCopy = {
+  /** The original id — only used to re-point `replyToId` at the copy. */
+  id: string;
+  role: MessageRole;
+  content: string;
+  sources: ChatSource[] | null;
+  replyTo: string | null;
+  replyToId: string | null;
+};
 
 export type TurnSave = {
   /** Omit to create the conversation (first answered question of a new chat). */
@@ -11,6 +38,10 @@ export type TurnSave = {
   clientId: string;
   title: string;
   question: string;
+  /** The quoted part of an earlier answer the question replies to. */
+  replyTo?: string;
+  /** Id of the answer `replyTo` was quoted from. */
+  replyToId?: string;
   answer: string;
   sources: ChatSource[];
 };
@@ -34,7 +65,12 @@ export const conversationRepository = {
   async findWithMessages(id: string, clientId: string): Promise<ConversationWithMessages | null> {
     return prisma.conversation.findFirst({
       where: { id, clientId },
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          include: { feedback: { where: { clientId }, select: { rating: true, note: true } } },
+        },
+      },
     });
   },
 
@@ -59,13 +95,17 @@ export const conversationRepository = {
     clientId,
     title,
     question,
+    replyTo,
+    replyToId,
     answer,
     sources,
-  }: TurnSave): Promise<Conversation> {
+  }: TurnSave): Promise<SavedTurn> {
     const askedAt = new Date();
     const answeredAt = new Date(askedAt.getTime() + 1); // keeps the pair's order stable
+    // Chosen here because createMany does not return ids; the client needs it for feedback
+    const answerId = randomUUID();
 
-    return prisma.$transaction(async (tx) => {
+    const conversation = await prisma.$transaction(async (tx) => {
       const conversation = conversationId
         ? await tx.conversation.update({
             where: { id: conversationId },
@@ -75,8 +115,16 @@ export const conversationRepository = {
 
       await tx.message.createMany({
         data: [
-          { conversationId: conversation.id, role: 'user', content: question, createdAt: askedAt },
           {
+            conversationId: conversation.id,
+            role: 'user',
+            content: question,
+            replyTo,
+            replyToId,
+            createdAt: askedAt,
+          },
+          {
+            id: answerId,
             conversationId: conversation.id,
             role: 'assistant',
             content: answer,
@@ -88,6 +136,61 @@ export const conversationRepository = {
 
       return conversation;
     });
+
+    return { conversation, answerId };
+  },
+
+  /**
+   * A new conversation holding copies of `messages`, in order (used to continue a shared chat).
+   * Copies get new ids, so each `replyToId` is re-pointed at the copy of the answer it quoted.
+   */
+  async createWithMessages(
+    clientId: string,
+    title: string,
+    messages: MessageCopy[],
+  ): Promise<Conversation> {
+    const start = Date.now();
+    const newIds = new Map(messages.map((message) => [message.id, randomUUID()]));
+    return prisma.conversation.create({
+      data: {
+        clientId,
+        title,
+        messages: {
+          createMany: {
+            data: messages.map(({ id, role, content, sources, replyTo, replyToId }, index) => ({
+              id: newIds.get(id),
+              role,
+              content,
+              sources: sources ?? undefined,
+              replyTo,
+              replyToId: replyToId ? (newIds.get(replyToId) ?? null) : null,
+              createdAt: new Date(start + index), // keeps the copied order stable
+            })),
+          },
+        },
+      },
+    });
+  },
+
+  /** An assistant message in one of this browser's conversations, with the question before it. */
+  async findAnswerWithQuestion(
+    messageId: string,
+    clientId: string,
+  ): Promise<{ answer: Message; question: Message | null } | null> {
+    const answer = await prisma.message.findFirst({
+      where: { id: messageId, role: 'assistant', conversation: { clientId } },
+    });
+    if (!answer) return null;
+
+    const question = await prisma.message.findFirst({
+      where: {
+        conversationId: answer.conversationId,
+        role: 'user',
+        createdAt: { lt: answer.createdAt },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { answer, question };
   },
 
   async deleteForClient(id: string, clientId: string): Promise<number> {

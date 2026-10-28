@@ -12,7 +12,8 @@ export function getDocWebUrl(docPath: string, baseUrl = env.DOCS_WEB_URL): strin
   return `${baseUrl.replace(/\/+$/, '')}?pagePath=${encodeURIComponent(`/${pagePath}`)}`;
 }
 
-function decodeWikiName(name: string): string {
+/** One wiki path segment → its page name: `-` is a space, then percent-decoding (`%2D` = `-`). */
+export function decodeWikiName(name: string): string {
   const spaced = name.replaceAll('-', ' ');
   try {
     return decodeURIComponent(spaced);

@@ -12,7 +12,10 @@ export const useChatStore = create<ChatState>((set) => ({
   stage: null,
   error: null,
   loadStatus: IDLE_STATUSES.idle,
+  area: null,
+  replyTo: null,
 
+  // `area` is kept: the product filter applies across chats until the user changes it.
   resetChat: () =>
     set({
       conversationId: null,
@@ -20,25 +23,37 @@ export const useChatStore = create<ChatState>((set) => ({
       stage: null,
       error: null,
       loadStatus: IDLE_STATUSES.idle,
+      replyTo: null,
     }),
 
   showConversation: (conversationId, turns) =>
-    set({ conversationId, turns, stage: null, error: null, loadStatus: IDLE_STATUSES.success }),
+    set({
+      conversationId,
+      turns,
+      stage: null,
+      error: null,
+      loadStatus: IDLE_STATUSES.success,
+      replyTo: null,
+    }),
 
   setConversationId: (conversationId) => set({ conversationId }),
 
   setLoadStatus: (loadStatus) => set({ loadStatus }),
 
-  startTurn: (question) =>
+  startTurn: (question, replyTo) =>
     set((state) => ({
       turns: [
         ...state.turns,
         {
           id: createUuid(),
           question,
+          replyTo: replyTo?.quote ?? null,
+          replyToId: replyTo?.answerId ?? null,
           answer: '',
+          answerId: null,
           sources: [],
           notice: null,
+          feedback: null,
           status: TURN_STATUSES.streaming,
         },
       ],
@@ -54,7 +69,16 @@ export const useChatStore = create<ChatState>((set) => ({
 
   removeLastTurn: () => set((state) => ({ turns: state.turns.slice(0, -1) })),
 
+  setTurnFeedback: (turnId, feedback) =>
+    set((state) => ({
+      turns: state.turns.map((turn) => (turn.id === turnId ? { ...turn, feedback } : turn)),
+    })),
+
   setStage: (stage) => set({ stage }),
 
   setError: (error) => set({ error }),
+
+  setArea: (area) => set({ area }),
+
+  setReplyTo: (replyTo) => set({ replyTo }),
 }));

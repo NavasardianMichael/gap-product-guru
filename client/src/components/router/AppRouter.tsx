@@ -5,6 +5,8 @@ import { PageLoader } from '@/components/shared/PageLoader';
 import AppErrorPage from '@/pages/AppErrorPage';
 
 const ChatPage = lazy(() => import('@/pages/ChatPage'));
+const SharedConversationPage = lazy(() => import('@/pages/SharedConversationPage'));
+const AdminPage = lazy(() => import('@/pages/AdminPage'));
 
 function AppLayout() {
   return (
@@ -23,6 +25,8 @@ const router = createBrowserRouter([
     children: [
       { path: ROUTES.HOME, element: <ChatPage /> },
       { path: ROUTES.CONVERSATION, element: <ChatPage /> },
+      { path: ROUTES.SHARED, element: <SharedConversationPage /> },
+      { path: ROUTES.ADMIN, element: <AdminPage /> },
       { path: '*', element: <Navigate to={ROUTES.HOME} replace /> },
     ],
   },

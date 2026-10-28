@@ -12,6 +12,7 @@ import { ChatComposer } from '@/components/chat/ChatComposer';
 import { ChatErrorAlert } from '@/components/chat/ChatErrorAlert';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatThread } from '@/components/chat/ChatThread';
+import { ShareButton } from '@/components/chat/ShareButton';
 import { ConversationSidebar } from '@/components/conversations/ConversationSidebar';
 
 const ChatPage: FC = () => {
@@ -66,7 +67,13 @@ const ChatPage: FC = () => {
         onDelete={handleDelete}
       />
       <Layout.Content className="flex min-h-0 min-w-0 flex-col">
-        <ChatHeader title={title} onOpenMenu={isDocked ? undefined : openDrawer} />
+        <ChatHeader
+          title={title}
+          onOpenMenu={isDocked ? undefined : openDrawer}
+          extra={
+            conversationId && <ShareButton conversationId={conversationId} disabled={isStreaming} />
+          }
+        />
         <ChatThread />
         <div className="mx-auto w-full max-w-3xl px-4 pt-2 pb-4">
           {error && <ChatErrorAlert error={error} onRetry={retry} onDismiss={dismissError} />}

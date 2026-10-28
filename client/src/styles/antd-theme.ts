@@ -31,6 +31,10 @@ export const theme: ThemeConfig = {
       bodyBg: BRAND_BACKGROUND,
       siderBg: '#ffffff',
     },
+    Select: {
+      // antd's 600 renders as bold in CentraNo2; 500 matches the selected value in AreaSelect
+      optionSelectedFontWeight: 500,
+    },
     Spin: {
       colorPrimary: BRAND_PRIMARY,
     },

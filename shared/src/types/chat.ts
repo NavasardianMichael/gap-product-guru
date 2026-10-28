@@ -34,16 +34,85 @@ export type ConversationSummary = {
   updatedAt: string;
 };
 
+export const FEEDBACK_RATINGS = {
+  /** "This answer helped" (thumbs up). */
+  helpful: 'helpful',
+  /** A report of misleading or incorrect information, reviewed in the admin panel. */
+  incorrect: 'incorrect',
+} as const;
+
+export type FeedbackRatingType = (typeof FEEDBACK_RATINGS)[keyof typeof FEEDBACK_RATINGS];
+
+/** This browser's own feedback on one answer. */
+export type MessageFeedbackDto = {
+  rating: FeedbackRatingType;
+  note: string | null;
+};
+
 export type ChatMessageDto = {
   id: string;
   role: MessageRole;
   content: string;
   sources: ChatSource[];
+  /** The quoted part of an earlier answer this question replies to — user messages only. */
+  replyTo: string | null;
+  /** Id of the answer the quote came from (null for replies saved before this was stored). */
+  replyToId: string | null;
+  /** This browser's feedback — assistant messages only, always null in shared conversations. */
+  feedback: MessageFeedbackDto | null;
   createdAt: string;
 };
 
 export type ConversationDetail = ConversationSummary & {
   messages: ChatMessageDto[];
+};
+
+/** A read-only snapshot of a conversation, as it was when its link was created. */
+export type SharedConversationDto = {
+  id: string;
+  title: string;
+  sharedAt: string;
+  messages: ChatMessageDto[];
+};
+
+export type ShareLinkDto = {
+  shareId: string;
+};
+
+/** A top-level section of the docs wiki, used to narrow retrieval. */
+export type DocAreaDto = {
+  /** The top-level folder (or root page) name, e.g. `Breakthrough-Execution-Software`. */
+  key: string;
+  /** Readable name, e.g. `Breakthrough Execution Software`. */
+  name: string;
+  pages: number;
+};
+
+// ─── Admin ───
+
+export const ADMIN_FEEDBACK_VIEWS = {
+  open: 'open',
+  resolved: 'resolved',
+  helpful: 'helpful',
+} as const;
+
+export type AdminFeedbackView = (typeof ADMIN_FEEDBACK_VIEWS)[keyof typeof ADMIN_FEEDBACK_VIEWS];
+
+/** One piece of feedback with the question and answer it was about, copied when it was given. */
+export type AdminFeedbackItem = {
+  id: string;
+  rating: FeedbackRatingType;
+  note: string | null;
+  question: string;
+  answer: string;
+  sources: ChatSource[];
+  createdAt: string;
+  resolvedAt: string | null;
+};
+
+export type AdminFeedbackList = {
+  summary: Record<AdminFeedbackView, number>;
+  items: AdminFeedbackItem[];
 };
 
 export type ChatStreamError = {
@@ -62,5 +131,7 @@ export type ChatStreamFrame =
   | { sources: ChatSource[] }
   | { delta: string }
   | { notice: string }
+  /** Id of the saved assistant message — what feedback is attached to. Sent just before `conversation`. */
+  | { answerId: string }
   | { conversation: ConversationSummary }
   | { error: ChatStreamError };

@@ -89,7 +89,7 @@ pnpm db:migrate     # prisma migrate dev
 shared/src/
 ├── types/api.ts          # ApiResponse / ApiError envelope + ErrorCode
 ├── types/chat.ts         # ChatStreamFrame, ChatSource, ConversationSummary, …
-├── schemas/chat.ts       # chatRequestSchema, conversationParamsSchema, clientIdSchema
+├── schemas/chat.ts       # chatRequestSchema, idParamsSchema, feedbackRequestSchema, admin schemas
 ├── constants/chat.ts     # CHAT_MESSAGE_MAX_LENGTH, CLIENT_ID_HEADER, SSE_DONE
 └── constants/httpStatus.ts
 ```
@@ -105,11 +105,11 @@ Import from the package root: `import { ErrorCode, type ChatSource } from '@gap-
 ```
 client/src/
 ├── api/<domain>/{endpoints,index,types}.ts   # fetch calls; relative /api URLs
-├── components/{antd,router,chat,conversations,shared}/
+├── components/{admin,antd,router,chat,conversations,shared}/
 ├── constants/          # routes, UI copy (chat.ts), loading statuses
 ├── helpers/            # pure helpers (clientId, error, common)
 ├── hooks/              # useChat, useConversations, … — API calls live here, never in stores
-├── pages/              # ChatPage, AppErrorPage (default exports)
+├── pages/              # ChatPage, SharedConversationPage, AdminPage, AppErrorPage (default exports)
 ├── store/<domain>/{store,selectors,types}.ts   # Zustand
 └── styles/             # tailwind.css, markdown.css, antd-theme.ts
 ```
@@ -138,8 +138,8 @@ server/src/
 ├── lib/                 # logger (pino), gemini (client, embeddings, error mapping)
 ├── middleware/          # errorHandler (+AppError), validate, rateLimiter, requireClientId
 ├── repositories/        # Prisma + raw vector SQL
-├── services/            # chatService (SSE generator), chatPrompts, retrieval, conversations
-├── routes/              # index (/health + mounts), chat (SSE), conversations
+├── services/            # chatService (SSE), chatPrompts, retrieval, conversations, feedback, shares, docs
+├── routes/              # index (/health + mounts), chat (SSE), conversations, messages, shares, docs, admin
 ├── ingest/              # CLI, scanDocs, markdownChunker (+ tests)
 └── web/serveClient.ts   # production: serve client/dist
 ```

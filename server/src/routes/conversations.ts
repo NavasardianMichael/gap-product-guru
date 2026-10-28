@@ -3,6 +3,7 @@ import { type Request, type Router as ExpressRouter, Router } from 'express';
 
 import { validate } from '@/middleware/validate.js';
 import { conversationService } from '@/services/conversationService.js';
+import { shareService } from '@/services/shareService.js';
 
 const router: ExpressRouter = Router();
 
@@ -24,6 +25,16 @@ router.get('/:id', validate(conversationParamsSchema, 'params'), async (req, res
   try {
     const conversation = await conversationService.get(conversationId(req), req.clientId!);
     res.json({ success: true, data: conversation });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/conversations/:id/share — a read-only snapshot link of the conversation as it is now
+router.post('/:id/share', validate(conversationParamsSchema, 'params'), async (req, res, next) => {
+  try {
+    const link = await shareService.create(conversationId(req), req.clientId!);
+    res.status(201).json({ success: true, data: link });
   } catch (error) {
     next(error);
   }

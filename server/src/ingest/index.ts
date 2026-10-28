@@ -13,6 +13,7 @@ import { env, SERVER_ROOT } from '@/config/env.js';
 import { prisma } from '@/db/index.js';
 import { CHUNK_MAX_TOKENS, CHUNKER_VERSION, chunkMarkdown } from '@/ingest/markdownChunker.js';
 import { type DocFile, scanDocs } from '@/ingest/scanDocs.js';
+import { getDocArea } from '@/lib/docAreas.js';
 import { embedTexts, toAiError, toDocumentEmbeddingText } from '@/lib/gemini.js';
 import { logger } from '@/lib/logger.js';
 import { chunkRepository } from '@/repositories/chunkRepository.js';
@@ -78,7 +79,13 @@ async function syncDocuments(files: DocFile[]): Promise<void> {
     }
 
     const { title, chunks } = chunkMarkdown(markdown, file.path);
-    await documentRepository.replace({ path: file.path, title, contentHash, chunks });
+    await documentRepository.replace({
+      path: file.path,
+      title,
+      area: getDocArea(file.path),
+      contentHash,
+      chunks,
+    });
     if (previousHash) counts.updated++;
     else counts.added++;
   }

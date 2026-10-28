@@ -7,10 +7,13 @@ import {
   HttpStatus,
 } from '@gap-product-guru/shared';
 
-import { type Conversation, type Message } from '@/generated/prisma/client.js';
+import { type Conversation } from '@/generated/prisma/client.js';
 import { getDocWebUrl } from '@/lib/docLinks.js';
 import { AppError } from '@/middleware/errorHandler.js';
-import { conversationRepository } from '@/repositories/conversationRepository.js';
+import {
+  conversationRepository,
+  type MessageWithFeedback,
+} from '@/repositories/conversationRepository.js';
 
 const notFound = () =>
   new AppError(HttpStatus.NOT_FOUND, ErrorCode.NOT_FOUND, 'Conversation not found');
@@ -23,16 +26,27 @@ export function toConversationSummary(conversation: Conversation): ConversationS
   };
 }
 
-function toMessageDto(message: Message): ChatMessageDto {
+/**
+ * Stored sources with their wiki links rebuilt. Links are built on read, so older messages and a
+ * changed DOCS_WEB_URL still link correctly.
+ */
+export function withSourceLinks(sources: unknown): ChatSource[] {
+  return ((sources as ChatSource[] | null) ?? []).map((source) => ({
+    ...source,
+    url: getDocWebUrl(source.path),
+  }));
+}
+
+function toMessageDto(message: MessageWithFeedback): ChatMessageDto {
+  const [feedback] = message.feedback;
   return {
     id: message.id,
     role: message.role,
     content: message.content,
-    // Links are rebuilt on read, so older messages and a changed DOCS_WEB_URL still link correctly
-    sources: ((message.sources as ChatSource[] | null) ?? []).map((source) => ({
-      ...source,
-      url: getDocWebUrl(source.path),
-    })),
+    sources: withSourceLinks(message.sources),
+    replyTo: message.replyTo,
+    replyToId: message.replyToId,
+    feedback: feedback ? { rating: feedback.rating, note: feedback.note } : null,
     createdAt: message.createdAt.toISOString(),
   };
 }

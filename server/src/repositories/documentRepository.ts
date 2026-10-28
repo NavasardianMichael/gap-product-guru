@@ -9,8 +9,14 @@ export type DocumentHash = {
 export type DocumentReplace = {
   path: string;
   title: string;
+  area: string;
   contentHash: string;
   chunks: ChunkDraft[];
+};
+
+export type AreaCount = {
+  area: string;
+  pages: number;
 };
 
 export const documentRepository = {
@@ -19,13 +25,18 @@ export const documentRepository = {
   },
 
   /** Drops the old version (chunks cascade) and inserts the new one with un-embedded chunks. */
-  async replace({ path, title, contentHash, chunks }: DocumentReplace): Promise<void> {
+  async replace({ path, title, area, contentHash, chunks }: DocumentReplace): Promise<void> {
     await prisma.$transaction([
       prisma.document.deleteMany({ where: { path } }),
       prisma.document.create({
-        data: { path, title, contentHash, chunks: { createMany: { data: chunks } } },
+        data: { path, title, area, contentHash, chunks: { createMany: { data: chunks } } },
       }),
     ]);
+  },
+
+  async countByArea(): Promise<AreaCount[]> {
+    const groups = await prisma.document.groupBy({ by: ['area'], _count: { _all: true } });
+    return groups.map((group) => ({ area: group.area, pages: group._count._all }));
   },
 
   async deleteByPaths(paths: string[]): Promise<number> {

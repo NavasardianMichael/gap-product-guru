@@ -24,6 +24,12 @@ export type StreamChatInput = {
   /** Already verified to belong to `clientId` by the route. */
   conversationId?: string;
   message: string;
+  /** Limits retrieval to one docs area (documents.area). */
+  area?: string;
+  /** The quoted part of an earlier answer this question replies to. */
+  replyTo?: string;
+  /** Id of the answer `replyTo` was quoted from. */
+  replyToId?: string;
   /** Aborted when the client disconnects or presses Stop. */
   signal: AbortSignal;
 };
@@ -59,6 +65,9 @@ export async function* streamChat({
   clientId,
   conversationId,
   message,
+  area,
+  replyTo,
+  replyToId,
   signal,
 }: StreamChatInput): AsyncGenerator<ChatStreamFrame> {
   const history = conversationId
@@ -67,8 +76,9 @@ export async function* streamChat({
 
   yield { status: CHAT_STAGES.retrieving };
   const chunks = await retrievalService.search(
-    buildRetrievalQuery(message, history),
+    buildRetrievalQuery(message, history, replyTo),
     env.RAG_TOP_K,
+    area,
   );
   const sources = toChatSources(chunks);
   yield { sources };
@@ -78,7 +88,7 @@ export async function* streamChat({
     model: env.GEMINI_CHAT_MODEL,
     contents: [
       ...buildHistoryContents(history),
-      { role: 'user', parts: [{ text: buildUserPrompt(message, chunks) }] },
+      { role: 'user', parts: [{ text: buildUserPrompt(message, chunks, replyTo) }] },
     ],
     config: {
       ...buildGenerationConfig(env.GEMINI_CHAT_MODEL),
@@ -104,17 +114,21 @@ export async function* streamChat({
   if (notice) yield { notice };
   if (!answer.trim()) return;
 
-  const conversation = await conversationRepository.saveTurn({
+  const { conversation, answerId } = await conversationRepository.saveTurn({
     conversationId,
     clientId,
     title: buildConversationTitle(message),
     question: message,
+    replyTo,
+    // Without a quote there is nothing to jump back to
+    replyToId: replyTo ? replyToId : undefined,
     answer,
     sources,
   });
   logger.info(
-    { conversationId: conversation.id, finishReason, action: 'chat_answered' },
+    { conversationId: conversation.id, area, finishReason, action: 'chat_answered' },
     'chat answered',
   );
+  yield { answerId };
   yield { conversation: toConversationSummary(conversation) };
 }

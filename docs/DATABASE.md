@@ -19,12 +19,22 @@ docker exec -it gap-product-guru-postgres psql -U guru -d gap_product_guru
 
 ## Schema
 
-| Table           | Purpose                                        | Key columns                                                                                   |
-| --------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `documents`     | One row per Markdown file                      | `path` (unique, forward slashes), `title`, `content_hash`                                     |
-| `chunks`        | Heading-aware slices of a document             | `document_id` (cascade), `position`, `heading`, `content`, `embedding vector(768)` (nullable) |
-| `conversations` | One chat thread                                | `client_id` (anonymous browser id), `title`, `updated_at`                                     |
-| `messages`      | User/assistant messages, always saved in pairs | `conversation_id` (cascade), `role` enum, `content`, `sources` (JSON)                         |
+| Table                  | Purpose                                        | Key columns                                                                                                      |
+| ---------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `documents`            | One row per Markdown file                      | `path` (unique, forward slashes), `title`, `area` (indexed), `content_hash`                                      |
+| `chunks`               | Heading-aware slices of a document             | `document_id` (cascade), `position`, `heading`, `content`, `embedding vector(768)` (nullable)                    |
+| `conversations`        | One chat thread                                | `client_id` (anonymous browser id), `title`, `updated_at`                                                        |
+| `messages`             | User/assistant messages, always saved in pairs | `conversation_id` (cascade), `role` enum, `content`, `sources` (JSON), `reply_to` (quote), `reply_to_id`         |
+| `message_feedback`     | 👍 or a report on an answer, one per browser   | `message_id` (SET NULL), `client_id`, `rating` enum, `note`, copied `question`/`answer`/`sources`, `resolved_at` |
+| `shared_conversations` | Read-only snapshot behind a share link         | `client_id`, `conversation_id` (plain id), `title`, `messages` (JSON snapshot)                                   |
+
+- `documents.area` is the first path segment without `.md` (`getDocArea`); the migration that added
+  it backfilled existing rows with the same rule in SQL, so no re-ingest was needed.
+- `message_feedback` copies the question, answer and sources and uses `ON DELETE SET NULL`: a
+  report must stay readable in the admin panel after the user deletes the conversation.
+  `UNIQUE (message_id, client_id)` makes feedback an upsert (👍 ↔ 🚩 replace each other).
+- `shared_conversations.messages` is a JSON copy rather than a link to `messages`: a snapshot must
+  not change when the owner keeps chatting, and must survive the conversation being deleted.
 
 Conventions follow regionify: `String @id @default(uuid())`, camelCase fields with `@map("snake_case")`,
 plural `@@map` table names, `created_at` / `updated_at`.

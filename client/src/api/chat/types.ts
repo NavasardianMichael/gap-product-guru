@@ -10,6 +10,8 @@ export type ChatStreamHandlers = {
   onSources: (sources: ChatSource[]) => void;
   onDelta: (text: string) => void;
   onNotice: (notice: string) => void;
+  /** Id of the saved answer — what feedback is attached to. */
+  onAnswerId: (answerId: string) => void;
   /** Sent once the turn is saved — carries the id of a newly created conversation. */
   onConversation: (conversation: ConversationSummary) => void;
 };

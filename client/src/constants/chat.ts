@@ -36,6 +36,80 @@ export const CHAT_COPY = {
   openMenu: 'Open conversations',
 } as const;
 
+export const FEEDBACK_COPY = {
+  helpful: 'This answer helped',
+  undoHelpful: 'Remove "helped"',
+  report: 'Report misleading or incorrect info',
+  reported: 'Reported — click to edit your report',
+  reportTitle: 'Report this answer',
+  reportIntro:
+    'What is misleading or incorrect? Your note goes to the team that maintains the documentation.',
+  reportPlaceholder:
+    'e.g. These steps are for the old dashboard — the button is now under Settings › Access.',
+  sendReport: 'Send report',
+  reportSent: 'Thanks — your report was sent.',
+  thanks: 'Thanks for the feedback!',
+  failed: 'Could not save your feedback. Please try again.',
+} as const;
+
+export const REPLY_COPY = {
+  reply: 'Reply',
+  replyHint: 'Reply to this answer (select text first to quote only that part)',
+  replyingTo: 'Replying to',
+  goToAnswer: 'Go to the quoted answer',
+  cancel: 'Cancel reply',
+} as const;
+
+export const AREA_COPY = {
+  label: 'Search in',
+  all: 'All products',
+  pages: (count: number) => `${count} page${count === 1 ? '' : 's'}`,
+  loadFailed: 'Could not load the product areas.',
+} as const;
+
+export const SHARE_COPY = {
+  share: 'Share',
+  title: 'Share this conversation',
+  intro:
+    'Anyone with the link can view this conversation as it is now. Messages you send after creating the link are not shared.',
+  create: 'Create link',
+  copy: 'Copy link',
+  copied: 'Link copied',
+  copyFailed: 'Copy the link from the box above.',
+  createFailed: 'Could not create the link. Please try again.',
+  sharedLabel: 'Shared conversation · read-only',
+  sharedOn: (date: string) => `Shared ${date}`,
+  snapshotNote: 'This is a snapshot — messages added after it was shared are not included.',
+  continue: 'Continue this conversation',
+  continueFailed: 'Could not copy the conversation. Please try again.',
+  notFoundTitle: 'Link not found',
+  notFoundBody: "This shared conversation doesn't exist or the link is incomplete.",
+  goHome: 'Start a new chat',
+} as const;
+
+export const ADMIN_COPY = {
+  title: 'Answer feedback',
+  backToChat: 'Back to chat',
+  refresh: 'Refresh',
+  openReports: 'Open reports',
+  resolvedReports: 'Resolved',
+  helpful: 'Helpful',
+  question: 'Question',
+  note: 'Reporter’s note',
+  noNote: 'No note was added.',
+  answer: 'Answer',
+  resolve: 'Mark resolved',
+  reopen: 'Reopen',
+  resolvedOn: (date: string) => `Resolved ${date}`,
+  report: 'Report',
+  helpfulTag: 'Helped',
+  loadFailed: 'Could not load feedback.',
+  updateFailed: 'Could not update the report.',
+  emptyOpen: 'No open reports. 🎉',
+  emptyResolved: 'No resolved reports yet.',
+  emptyHelpful: 'No "helped" votes yet.',
+} as const;
+
 export const STAGE_LABELS: Record<ChatStage, string> = {
   retrieving: 'Searching the documentation…',
   generating: 'Writing the answer…',

@@ -8,12 +8,20 @@ off. **Source of truth:** `server/src/services/chatService.ts` and `server/src/s
 
 ## Retrieval
 
-1. **Query text** — the question itself. If it is a short follow-up (fewer than 12 words), the previous
-   question is prepended: "How do I install on Windows?\nand on Mac?". See _Follow-ups_ below.
+1. **Query text** — the question itself. A **reply** is searched as `quote + question` (the quote names
+   the topic). Otherwise, if it is a short follow-up (fewer than 12 words), the previous question is
+   prepended: "How do I install on Windows?\nand on Mac?". See _Follow-ups_ below.
 2. **Embed** with `gemini-embedding-2` as `task: search result | query: …` (768 dims).
 3. **Search** — `ORDER BY embedding <=> query LIMIT RAG_TOP_K` (cosine distance, exact scan) in
-   `chunkRepository.searchSimilar`. `score = 1 − distance` (higher is more similar).
-4. If no chunk has a vector at all, the stream fails with `DOCS_NOT_INDEXED` instead of calling Gemini.
+   `chunkRepository.searchSimilar`. `score = 1 − distance` (higher is more similar). With a product
+   filter (`area` in the request) only documents of that top-level wiki section are searched
+   (`documents.area = $area`, indexed).
+4. If no chunk has a vector at all, the stream fails with `DOCS_NOT_INDEXED` instead of calling Gemini;
+   if only the chosen area has none, it fails with `NOT_FOUND` ("choose another area").
+
+**Replies** also reach the model: the quote goes in a `<quote>` block before the question in the final
+user turn (and in replayed history), with `[n]` markers stripped because they belonged to an older
+answer's sources.
 
 There is **no similarity threshold**: the top K are always sent and the system prompt makes the model
 say when they don't contain the answer. A threshold sounds tidy but cosine scores vary by model and

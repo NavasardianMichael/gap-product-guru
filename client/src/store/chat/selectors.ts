@@ -6,6 +6,8 @@ export const selectTurns = (state: ChatState) => state.turns;
 export const selectStage = (state: ChatState) => state.stage;
 export const selectError = (state: ChatState) => state.error;
 export const selectLoadStatus = (state: ChatState) => state.loadStatus;
+export const selectArea = (state: ChatState) => state.area;
+export const selectReplyTo = (state: ChatState) => state.replyTo;
 export const selectIsStreaming = (state: ChatState) =>
   state.turns.at(-1)?.status === TURN_STATUSES.streaming;
 
@@ -20,3 +22,6 @@ export const selectAppendToLastTurn = (state: ChatState) => state.appendToLastTu
 export const selectRemoveLastTurn = (state: ChatState) => state.removeLastTurn;
 export const selectSetStage = (state: ChatState) => state.setStage;
 export const selectSetError = (state: ChatState) => state.setError;
+export const selectSetTurnFeedback = (state: ChatState) => state.setTurnFeedback;
+export const selectSetArea = (state: ChatState) => state.setArea;
+export const selectSetReplyTo = (state: ChatState) => state.setReplyTo;
