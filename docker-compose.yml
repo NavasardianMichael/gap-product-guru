@@ -1,0 +1,35 @@
+# Local Postgres with pgvector for Gap Product Guru.
+# Values come from the root .env (optional — the defaults below work out of the box).
+# Only POSTGRES_* reach the container; the Gemini key lives in server/.env.development.local.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
+services:
+  postgres:
+    # Postgres 17 with the pgvector extension available; the init migration runs CREATE EXTENSION.
+    image: pgvector/pgvector:pg17
+    container_name: gap-product-guru-postgres
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-guru}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-guru}
+      POSTGRES_DB: ${POSTGRES_DB:-gap_product_guru}
+    ports:
+      # 5435 on the host: 5432/5433/5004 are already used by sibling projects.
+      - '${POSTGRES_PORT:-5435}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-guru} -d ${POSTGRES_DB:-gap_product_guru}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

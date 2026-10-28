@@ -1,0 +1,32 @@
+{
+  "name": "gap-product-guru",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@11.3.0",
+  "scripts": {
+    "dev": "pnpm --filter @gap-product-guru/shared build && pnpm run --parallel --filter @gap-product-guru/client --filter @gap-product-guru/server dev",
+    "dev:client": "pnpm --filter @gap-product-guru/client dev",
+    "dev:server": "pnpm --filter @gap-product-guru/server dev",
+    "build": "pnpm --filter @gap-product-guru/shared build && pnpm run --parallel --filter @gap-product-guru/client --filter @gap-product-guru/server build",
+    "start": "pnpm --filter @gap-product-guru/server start",
+    "lint": "pnpm run --parallel -r lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm --filter @gap-product-guru/shared build && pnpm run --parallel -r typecheck",
+    "test": "pnpm --filter @gap-product-guru/shared build && pnpm --filter @gap-product-guru/server test",
+    "ingest": "pnpm --filter @gap-product-guru/shared build && pnpm --filter @gap-product-guru/server ingest",
+    "ingest:dry": "pnpm --filter @gap-product-guru/shared build && pnpm --filter @gap-product-guru/server ingest:dry",
+    "docs:pull": "pnpm --filter @gap-product-guru/server docs:pull",
+    "docs:sync": "pnpm docs:pull && pnpm ingest",
+    "db:generate": "pnpm --filter @gap-product-guru/server db:generate",
+    "db:migrate": "pnpm --filter @gap-product-guru/server db:migrate",
+    "db:migrate:deploy": "pnpm --filter @gap-product-guru/server db:migrate:deploy",
+    "db:studio": "pnpm --filter @gap-product-guru/server db:studio"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "typescript": "~5.9.3"
+  }
+}

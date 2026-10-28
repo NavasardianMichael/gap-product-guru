@@ -1,0 +1,12 @@
+packages:
+  - client
+  - server
+  - shared
+
+allowBuilds:
+  '@google/genai': false
+  '@prisma/client': true
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true
+  protobufjs: false

@@ -1,0 +1,35 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+@theme {
+  /* Gap brand font (loaded by kit.css in index.html), with system fallbacks */
+  --font-sans: CentraNo2, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+
+  /* Gap "breakthrough executive" purple — ClientWorldUI's --cw-secondary */
+  --color-primary-50: #f6f4f7;
+  --color-primary-100: #ece6ed;
+  --color-primary-200: #d6c9d8;
+  --color-primary: #59315f;
+  --color-primary-600: #59315f;
+  --color-primary-700: #46274b;
+
+  /* Default Tailwind gray-300/400 — exposed for custom CSS (theme(colors.gray.*) is not resolved in v4). */
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+}
+
+/* Thin scrollbar (Firefox + WebKit). Put `scrollbar-thin` on the scrolling element. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-gray-300) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--color-gray-300);
+  border-radius: 3px;
+}

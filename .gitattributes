@@ -1,0 +1,22 @@
+# Normalize text files to LF in the repository and working tree (all platforms).
+# Pair with: git config core.autocrlf false (local or global on Windows).
+* text=auto eol=lf
+
+# Windows-only scripts that expect CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary — do not alter line endings
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.mp4 binary
+*.zip binary

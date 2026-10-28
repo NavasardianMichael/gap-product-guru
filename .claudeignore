@@ -1,0 +1,6 @@
+# Keep real environment files out of Claude Code context.
+# Safe templates stay readable via negation patterns below.
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample

@@ -1,0 +1,35 @@
+/*
+ * Answer rendering. Prose comes from @tailwindcss/typography (`prose` on MarkdownMessage);
+ * fenced code blocks are rendered by CodeBlock inside `.not-prose` and styled here, with
+ * highlight.js colours from highlight.js/styles/github-dark.css.
+ */
+
+.code-block pre {
+  margin: 0;
+  overflow-x: auto;
+  background: #0d1117;
+}
+
+.code-block pre code {
+  display: block;
+  padding: 0.875rem 1rem;
+  color: #e6edf3;
+  background: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+/* Blinking caret after the last block while the answer is still streaming */
+.is-streaming > :last-child::after {
+  content: '▍';
+  margin-left: 2px;
+  color: var(--color-primary);
+  animation: caret-blink 1s steps(2, start) infinite;
+}
+
+@keyframes caret-blink {
+  to {
+    visibility: hidden;
+  }
+}
