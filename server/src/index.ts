@@ -4,15 +4,19 @@ import { logger } from '@/lib/logger.js';
 
 const app = createApp();
 
-const server = app.listen(env.PORT, () => {
+const onListening = () => {
   logger.info(
-    { port: env.PORT, env: env.NODE_ENV, chatModel: env.GEMINI_CHAT_MODEL },
+    { host: env.HOST, port: env.PORT, env: env.NODE_ENV, chatModel: env.GEMINI_CHAT_MODEL },
     '🚀 Server started',
   );
   if (!env.GEMINI_API_KEY) {
     logger.warn('GEMINI_API_KEY is not set — chat and ingestion will fail until it is');
   }
-});
+};
+
+const server = env.HOST
+  ? app.listen(env.PORT, env.HOST, onListening)
+  : app.listen(env.PORT, onListening);
 
 // Graceful shutdown
 const shutdown = async (signal: string) => {

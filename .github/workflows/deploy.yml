@@ -1,0 +1,312 @@
+# =============================================================================
+# Build and deploy to production — gap-product-guru.mnavasardian.com.
+#
+# Operator documentation (pipeline, secrets, ports, operations): docs/DEPLOYMENT.md
+# One-time server setup, in order: docs/PRODUCTION_SETUP.md
+#
+# REQUIRED GITHUB SECRETS:
+#   SSH_HOST, SSH_USER, SSH_KEY, SSH_PORT (optional, default 22)
+#   APP_DIR            deployment root, e.g. /home/michael/apps/gap-product-guru
+#   ENV_SERVER_BASE64  base64 of server/.env.production.local — DATABASE_URL, GEMINI_API_KEY,
+#                      DOCS_REPO_URL, DOCS_REPO_BRANCH, DOCS_REPO_TOKEN, DOCS_WEB_URL, …
+#                      (`pnpm env:base64 production`). NODE_ENV, PORT, HOST and DOCS_DIR are
+#                      appended below, so do not put them in the secret.
+#
+# On-host layout:
+#   $APP_DIR/app/releases/<sha>/   server/ (dist, prisma, node_modules) · shared/ · client/dist
+#   $APP_DIR/app/current        -> releases/<sha>
+#   $APP_DIR/shared/.env.server    mode 600, written by this workflow — outside every release
+#   $APP_DIR/data/docs/            the wiki clone (docs-sync timer) — outside every release
+#   $APP_DIR/db/                   Postgres compose + .env, created by this workflow ONCE
+# =============================================================================
+
+name: Deploy to Production
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.claude/**'
+      - '.vscode/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  KEEP_RELEASES: 3
+  APP_PORT: 9008
+  SSH_OPTS: '-o ServerAliveInterval=30 -o ServerAliveCountMax=120 -o TCPKeepAlive=yes -o ConnectTimeout=30'
+
+# Deploys queue rather than abort: cancelling mid-script could leave `current` pointing at a
+# release whose service was never restarted.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  build:
+    name: Build release
+    runs-on: ubuntu-latest
+    needs: verify
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      # shared + client + server builds, then scripts/build-release.mjs assembles out/app
+      # (server as a standalone package with exactly pinned dependencies — see its header).
+      - run: pnpm build:release
+
+      # Resolved here so the host install can be --frozen-lockfile. Versions are already pinned
+      # exactly by the build script, so this only resolves transitives.
+      - name: Resolve release lockfile
+        working-directory: out/app/server
+        run: pnpm install --prod --lockfile-only
+
+      # The production compose file rides along so the deploy can create the database on a host
+      # that has none yet (ensure_database below). It is never applied to a running one.
+      - name: Create release archive
+        run: |
+          cp deployment/docker-compose.prod.yml out/app/
+          tar -czf app-build.tar.gz -C out/app .
+          echo "bundle: $(du -sh app-build.tar.gz | cut -f1)"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: app-build
+          path: app-build.tar.gz
+          retention-days: 1
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: app-build
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.SSH_PORT || 22 }}" "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      # The runtime half of the env is owned here rather than by the secret, so it cannot drift
+      # from the port nginx proxies to, the loopback-only bind and the on-host docs folder.
+      - name: Prepare server env file
+        run: |
+          echo "${{ secrets.ENV_SERVER_BASE64 }}" | base64 -d | tr -d '\r' > /tmp/env.server
+          sed -i '/^\(NODE_ENV\|PORT\|HOST\|DOCS_DIR\)=/d' /tmp/env.server
+          {
+            echo ""
+            echo "NODE_ENV=production"
+            echo "PORT=${{ env.APP_PORT }}"
+            echo "HOST=127.0.0.1"
+            echo "DOCS_DIR=${{ secrets.APP_DIR }}/data/docs"
+          } >> /tmp/env.server
+          echo "env file: $(grep -c '=' /tmp/env.server) assignments"
+          echo "keys:"; sed -n 's/^\([A-Z_]*\)=.*/  - \1/p' /tmp/env.server
+
+      - name: Copy release to host
+        run: |
+          scp ${{ env.SSH_OPTS }} -P "${{ secrets.SSH_PORT || 22 }}" \
+            app-build.tar.gz /tmp/env.server \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/"
+
+      - name: Deploy
+        run: |
+          ssh ${{ env.SSH_OPTS }} -p "${{ secrets.SSH_PORT || 22 }}" \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" bash -s -- \
+            "${{ secrets.APP_DIR }}" \
+            "${{ github.sha }}" \
+            "${{ env.KEEP_RELEASES }}" \
+            "${{ env.APP_PORT }}" << 'EOF'
+          set -euo pipefail
+          APP_DIR="$1"; RELEASE="$2"; KEEP="$3"; APP_PORT="$4"
+
+          mkdir -p "$APP_DIR/shared" "$APP_DIR/app/releases" "$APP_DIR/data"
+
+          wait_for() {
+            local name="$1" url="$2" unit="$3"
+            for i in $(seq 1 45); do
+              if curl -sf -o /dev/null --max-time 5 "$url"; then
+                echo "$name healthy after $((i * 2))s"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "::error::$name did not become healthy within 90s ($url)"
+            systemctl status "$unit" --no-pager --lines=20 || true
+            journalctl -u "$unit" -n 200 --no-pager || true
+            return 1
+          }
+
+          # Creates the production Postgres when, and only when, it does not exist yet. It never
+          # recreates, reconfigures or removes anything: an existing container is at most started,
+          # an existing db/.env or compose file is never rewritten, and nothing here runs `down`,
+          # `rm` or touches a volume. If the container is gone but its volume survived, `up`
+          # reattaches that data — Postgres ignores POSTGRES_* on an initialised volume, so
+          # DATABASE_URL must still carry the password the volume was created with.
+          ensure_database() {
+            local compose_src="$1" db_dir="$APP_DIR/db"
+            local name=gap-product-guru-postgres-prod volume=gap-product-guru-prod_gap_product_guru_pg_prod
+
+            # Only the container on this host is ours to create; any other DATABASE_URL is left alone.
+            local target
+            target=$(node -e 'const u = new URL(process.env.DATABASE_URL); console.log(`${u.hostname}:${u.port}`)')
+            case "$target" in
+              127.0.0.1:5008 | localhost:5008) ;;
+              *)
+                echo "database: DATABASE_URL points at $target, not this host's container — not managed"
+                return 0
+                ;;
+            esac
+
+            if docker container inspect "$name" >/dev/null 2>&1; then
+              if [ "$(docker container inspect -f '{{.State.Running}}' "$name")" = "true" ]; then
+                echo "database: $name already running — left as is"
+              else
+                echo "database: $name exists but is stopped — starting it"
+                docker start "$name" >/dev/null
+              fi
+            else
+              mkdir -p "$db_dir"
+              [ -f "$db_dir/docker-compose.prod.yml" ] || cp "$compose_src" "$db_dir/docker-compose.prod.yml"
+              # POSTGRES_* derived from DATABASE_URL, so the two cannot disagree on a first install.
+              # Restricted to URL-safe characters: compose interpolates `$` in .env.
+              if [ ! -f "$db_dir/.env" ]; then
+                ( umask 077; node -e '
+                  const u = new URL(process.env.DATABASE_URL)
+                  const values = {
+                    POSTGRES_USER: decodeURIComponent(u.username),
+                    POSTGRES_PASSWORD: decodeURIComponent(u.password),
+                    POSTGRES_DB: u.pathname.replace(/^\//, ""),
+                  }
+                  for (const [key, value] of Object.entries(values)) {
+                    if (!/^[A-Za-z0-9._~-]+$/.test(value)) {
+                      console.error(`${key} from DATABASE_URL is empty or has characters other than A-Z a-z 0-9 . _ ~ - (use a hex password)`)
+                      process.exit(1)
+                    }
+                  }
+                  console.log(Object.entries(values).map(([key, value]) => `${key}=${value}`).join("\n"))
+                ' > "$db_dir/.env.new" ) || { rm -f "$db_dir/.env.new"; echo "::error::cannot derive POSTGRES_* from DATABASE_URL"; return 1; }
+                chmod 600 "$db_dir/.env.new" && mv "$db_dir/.env.new" "$db_dir/.env"
+              fi
+              if docker volume inspect "$volume" >/dev/null 2>&1; then
+                echo "database: $name missing but volume $volume exists — reattaching the existing data"
+              else
+                echo "database: creating $name with a new, empty volume $volume"
+              fi
+              ( cd "$db_dir" && docker compose -f docker-compose.prod.yml up -d --no-recreate )
+            fi
+
+            for i in $(seq 1 30); do
+              if [ "$(docker container inspect -f '{{.State.Health.Status}}' "$name" 2>/dev/null)" = "healthy" ]; then
+                echo "database: healthy"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "::error::$name did not become healthy within 60s"
+            docker logs --tail 100 "$name" || true
+            return 1
+          }
+
+          # `ssh host bash -s` is a non-interactive, NON-LOGIN shell: it reads neither ~/.profile
+          # nor ~/.bashrc, so PATH entries a shell profile owns are invisible here. Resolve pnpm
+          # rather than inheriting a login PATH this workflow does not control.
+          resolve_pnpm() {
+            export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+            export PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"
+            export PATH="$PNPM_HOME:$HOME/.local/bin:/usr/local/bin:$PATH"
+            command -v pnpm >/dev/null && return 0
+
+            want=$(node -p "require('./package.json').packageManager || 'pnpm@latest'" 2>/dev/null || echo 'pnpm@latest')
+            mkdir -p "$HOME/.local/bin"
+            if command -v corepack >/dev/null; then
+              echo "resolving pnpm through corepack"
+              corepack enable --install-directory "$HOME/.local/bin" pnpm || true
+              command -v pnpm >/dev/null && return 0
+            fi
+            if command -v npm >/dev/null; then
+              echo "corepack absent; installing $want with npm"
+              npm install --global --prefix "$HOME/.local" "$want" || true
+              command -v pnpm >/dev/null && return 0
+            fi
+            echo "::error::pnpm is not reachable from a non-interactive shell, and could not be installed"
+            echo "  fix: npm install --global --prefix \"$HOME/.local\" $want — see docs/DEPLOYMENT.md"
+            return 1
+          }
+
+          echo "==> release $RELEASE"
+          NEW="$APP_DIR/app/releases/$RELEASE"
+          rm -rf "$NEW"; mkdir -p "$NEW"
+          tar -xzf /tmp/app-build.tar.gz -C "$NEW"
+          install -m 600 /tmp/env.server "$APP_DIR/shared/.env.server"
+
+          cd "$NEW/server"
+          resolve_pnpm
+          echo "pnpm $(pnpm --version) at $(command -v pnpm)"
+
+          # --ignore-scripts: pnpm 11 crashes ("readStream must be readable") running Prisma's
+          # lifecycle scripts from a non-interactive shell like this one. The only script the
+          # release needs fetches Prisma's schema engine; run it directly.
+          pnpm install --prod --frozen-lockfile --ignore-scripts
+          node scripts/fetch-prisma-engines.cjs
+
+          set -a; . "$APP_DIR/shared/.env.server"; set +a
+          ensure_database "$NEW/docker-compose.prod.yml"
+          ./node_modules/.bin/prisma migrate deploy --schema prisma/schema.prisma
+
+          ln -sfn "$NEW" "$APP_DIR/app/current"
+          sudo systemctl restart gap-product-guru
+          wait_for "app" "http://127.0.0.1:$APP_PORT/api/health" gap-product-guru
+          # The built client is served too — a release without it would answer /api only
+          curl -sf -o /dev/null --max-time 5 "http://127.0.0.1:$APP_PORT/" \
+            || { echo "::error::the app does not serve the client at /"; exit 1; }
+
+          # Keep the newest $KEEP releases so a rollback target survives.
+          ( cd "$APP_DIR/app/releases" && ls -t | tail -n +$((KEEP + 1)) | xargs -r rm -rf )
+
+          rm -f /tmp/app-build.tar.gz /tmp/env.server
+          echo "==> done"
+          EOF
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Deployment"
+            echo "**Release:** \`${{ github.sha }}\`"
+            echo ""
+            echo "- app (\`app/current\`, systemd \`gap-product-guru\`) + \`prisma migrate deploy\`"
+            echo "- https://gap-product-guru.mnavasardian.com"
+          } >> "$GITHUB_STEP_SUMMARY"

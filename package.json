@@ -10,6 +10,8 @@
     "dev:server": "pnpm --filter @gap-product-guru/server dev",
     "build": "pnpm --filter @gap-product-guru/shared build && pnpm run --parallel --filter @gap-product-guru/client --filter @gap-product-guru/server build",
     "start": "pnpm --filter @gap-product-guru/server start",
+    "build:release": "pnpm build && node scripts/build-release.mjs",
+    "env:base64": "node scripts/env-to-base64.mjs",
     "lint": "pnpm run --parallel -r lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

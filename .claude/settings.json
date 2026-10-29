@@ -22,6 +22,18 @@
             "statusMessage": "Checking docs repo guard"
           }
         ]
+      },
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guardEnvFiles.mjs\"",
+            "timeout": 10,
+            "onFailure": "block",
+            "statusMessage": "Checking env file guard"
+          }
+        ]
       }
     ]
   }

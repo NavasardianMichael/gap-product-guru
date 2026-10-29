@@ -45,9 +45,15 @@ app's `pnpm docs:pull` and your own terminal are not affected.
 
 Every `.md` under `DOCS_DIR` is ingested, so don't drop extra files into `data/docs/`.
 
-Auth uses the git credential manager (cached after the first browser sign-in on Windows). Never put a
-PAT in `DOCS_REPO_URL`. For unattended runs (CI, cron) use a PAT through the credential helper and set
-`GIT_TERMINAL_PROMPT=0` so a missing credential fails instead of waiting for input.
+Auth on your machine uses the git credential manager (cached after the first browser sign-in on
+Windows). On the server there is no browser: set **`DOCS_REPO_TOKEN`** (an Azure DevOps PAT, Code:
+Read). `pullDocs.ts` then sends it as an `Authorization` header via `GIT_CONFIG_*` environment
+variables — never in `DOCS_REPO_URL`, on the command line (visible in `ps`) or in a git config file
+— and turns prompts off, so a bad token fails instead of hanging.
+
+In production the sync runs nightly from `gap-product-guru-docs-sync.timer` (compiled
+`dist/ingest/pullDocs.js` then `dist/ingest/index.js`, with `DOCS_DIR=$APP_DIR/data/docs`). See
+[DEPLOYMENT.md](DEPLOYMENT.md).
 
 Azure wiki pages rarely start with a `# H1` (30 of ~400), so most titles come from the file name. The
 wiki writes spaces as `-` and percent-encodes the rest (`Setup%3A-Self%2Dhosted.md`), which

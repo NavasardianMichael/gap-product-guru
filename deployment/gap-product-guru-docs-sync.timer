@@ -1,0 +1,19 @@
+# =============================================================================
+# systemd — run gap-product-guru-docs-sync.service every night.
+# Install to /etc/systemd/system/gap-product-guru-docs-sync.timer, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now gap-product-guru-docs-sync.timer
+#   systemctl list-timers gap-product-guru-docs-sync   # next / last run
+#
+# 03:30 server time: outside working hours, because ingest and chat share one Gemini quota.
+# =============================================================================
+[Unit]
+Description=Nightly wiki sync for Gap Product Guru
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=10min
+# A run missed while the server was off happens at the next boot
+Persistent=true
+
+[Install]
+WantedBy=timers.target

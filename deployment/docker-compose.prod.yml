@@ -1,0 +1,43 @@
+# Production Postgres + pgvector. Lives at $APP_DIR/db/docker-compose.prod.yml on the host.
+#
+# Created by the deploy, once: ensure_database in .github/workflows/deploy.yml copies this file
+# and writes ./.env (POSTGRES_* derived from DATABASE_URL) only when the container does not
+# exist, then runs `up -d --no-recreate`. A running database is never recreated, reconfigured
+# or removed — so an edit here reaches an existing host only by hand:
+#
+#   cd $APP_DIR/db && <copy the new file here> && docker compose -f docker-compose.prod.yml up -d
+#
+# Separate from the repo's root docker-compose.yml, which is the dev database.
+
+name: gap-product-guru-prod
+
+services:
+  postgres:
+    # pgvector built in — the init migration runs CREATE EXTENSION vector. Same image as dev.
+    image: pgvector/pgvector:pg17
+    container_name: gap-product-guru-postgres-prod
+    restart: unless-stopped
+    ports:
+      # host:container. 5008 beside crossword (5007) and bookie (5004); loopback only —
+      # nothing outside the host should ever reach it.
+      - '127.0.0.1:5008:5432'
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-guru}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-gap_product_guru}
+    volumes:
+      - gap_product_guru_pg_prod:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-guru} -d ${POSTGRES_DB:-gap_product_guru}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+volumes:
+  gap_product_guru_pg_prod:

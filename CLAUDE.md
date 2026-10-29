@@ -6,16 +6,19 @@ Conventions follow the sibling **`regionify`** project; the deliberate deviation
 
 ## Docs — read the one for your task
 
-| Task                                                       | Read                                                                 |
-| ---------------------------------------------------------- | -------------------------------------------------------------------- |
-| How the pieces fit, request flow, why RAG                  | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                         |
-| Docs repo sync, chunking, `pnpm ingest`, ingest quotas     | [docs/INGESTION.md](docs/INGESTION.md)                               |
-| Retrieval, prompt, citations, chat history, answer quality | [docs/RETRIEVAL_AND_PROMPTING.md](docs/RETRIEVAL_AND_PROMPTING.md)   |
-| Model choice, free-tier limits, 429 handling, going paid   | [docs/GEMINI_MODELS_AND_QUOTAS.md](docs/GEMINI_MODELS_AND_QUOTAS.md) |
-| Schema, pgvector, migrations, Prisma 7                     | [docs/DATABASE.md](docs/DATABASE.md)                                 |
-| `POST /api/chat` SSE frames, abort, error frames           | [docs/STREAMING_PROTOCOL.md](docs/STREAMING_PROTOCOL.md)             |
-| Client stores, hooks, UI states, styling (antd + Tailwind) | [docs/CHAT_UI.md](docs/CHAT_UI.md)                                   |
-| Setup, scripts, ports                                      | [README.md](README.md)                                               |
+| Task                                                        | Read                                                                 |
+| ----------------------------------------------------------- | -------------------------------------------------------------------- |
+| How the pieces fit, request flow, why RAG                   | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                         |
+| Docs repo sync, chunking, `pnpm ingest`, ingest quotas      | [docs/INGESTION.md](docs/INGESTION.md)                               |
+| Retrieval, prompt, citations, chat history, answer quality  | [docs/RETRIEVAL_AND_PROMPTING.md](docs/RETRIEVAL_AND_PROMPTING.md)   |
+| Model choice, free-tier limits, 429 handling, going paid    | [docs/GEMINI_MODELS_AND_QUOTAS.md](docs/GEMINI_MODELS_AND_QUOTAS.md) |
+| Schema, pgvector, migrations, Prisma 7                      | [docs/DATABASE.md](docs/DATABASE.md)                                 |
+| `POST /api/chat` SSE frames, abort, error frames            | [docs/STREAMING_PROTOCOL.md](docs/STREAMING_PROTOCOL.md)             |
+| Client stores, hooks, UI states, styling (antd + Tailwind)  | [docs/CHAT_UI.md](docs/CHAT_UI.md)                                   |
+| Deploy pipeline, release, secrets, ports, operations        | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)                             |
+| One-time server setup (DNS, systemd, nginx, certs, secrets) | [docs/PRODUCTION_SETUP.md](docs/PRODUCTION_SETUP.md)                 |
+| Server config templates and their rules                     | [deployment/CLAUDE.md](deployment/CLAUDE.md)                         |
+| Setup, scripts, ports                                       | [README.md](README.md)                                               |
 
 ---
 
@@ -36,7 +39,12 @@ pnpm ingest:dry     # chunk stats only — no DB writes, no Gemini calls
 pnpm test           # server unit tests (vitest)
 pnpm typecheck && pnpm lint && pnpm format:check
 pnpm db:migrate     # prisma migrate dev
+pnpm build:release  # build + assemble the deployable out/app (what CI ships)
+pnpm env:base64 production | clip   # server/.env.production.local → ENV_SERVER_BASE64 secret
 ```
+
+Production: push to `master` deploys to https://gap-product-guru.mnavasardian.com (GitHub Actions →
+SSH → systemd, Postgres in Docker on 127.0.0.1:5008, nightly wiki-sync timer). See docs/DEPLOYMENT.md.
 
 ---
 
@@ -74,6 +82,8 @@ pnpm db:migrate     # prisma migrate dev
 ### Forbidden (All Packages)
 
 - Committing `.env*` files (except `.env.example`) or anything in `data/docs/`.
+- Reading or writing any `.env*` file other than `.env.example` (Claude). Enforced by the PreToolUse
+  hook `.claude/hooks/guardEnvFiles.mjs`.
 - Running any git command on the docs repo (`data/docs/`) other than read-only ones, `git clone`
   (once), `git fetch` and `git pull` — no reset, clean, checkout, config, sparse-checkout, branch,
   commit or push. Enforced for Claude by the PreToolUse hook `.claude/hooks/guardDocsRepo.mjs`.

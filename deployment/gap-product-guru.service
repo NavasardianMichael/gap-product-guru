@@ -1,0 +1,39 @@
+# =============================================================================
+# systemd — the app (Express serves the API and the built client).
+# Install to /etc/systemd/system/gap-product-guru.service
+# Paths assume APP_DIR=/home/michael/apps/gap-product-guru.
+#
+# WorkingDirectory is the `current` symlink, resolved at start, so `systemctl restart` is what
+# promotes a release. Never point it at a concrete releases/<sha> path.
+#
+# The env file is written by the deploy workflow (mode 600): ENV_SERVER_BASE64 plus the keys
+# the deploy owns (NODE_ENV, PORT=9008, HOST=127.0.0.1, DOCS_DIR). systemd's EnvironmentFile
+# is not dotenv — no `export`, no multi-line values.
+# =============================================================================
+[Unit]
+Description=Gap Product Guru — RAG chat over the product wiki
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=michael
+Group=michael
+WorkingDirectory=/home/michael/apps/gap-product-guru/app/current/server
+EnvironmentFile=/home/michael/apps/gap-product-guru/shared/.env.server
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+# Open SSE answers get up to 30s to finish (src/index.ts force-exits after that)
+TimeoutStopSec=35
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+# No ReadWritePaths: the app writes nothing to disk — its state is in Postgres.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

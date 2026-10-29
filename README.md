@@ -90,12 +90,19 @@ On the free tier a large corpus may need more than one day of embedding quota â€
 pnpm dev               # http://localhost:7005 (client) â†’ proxies /api to http://localhost:9005
 ```
 
-### Production Build
+### Production
+
+Every push to `master` deploys to **https://gap-product-guru.mnavasardian.com**: GitHub Actions
+builds a release (`pnpm build:release`), copies it over SSH, migrates and restarts the systemd
+service; a nightly timer pulls the wiki and re-indexes it. Pipeline and operations:
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md); the one-time server setup:
+[docs/PRODUCTION_SETUP.md](docs/PRODUCTION_SETUP.md).
+
+A local production run, for checking a build:
 
 ```bash
-cp server/.env.example server/.env.production.local   # set NODE_ENV=production + your values
 pnpm build
-pnpm start             # one server on PORT (default 9005) serves the client and /api
+NODE_ENV=production pnpm start   # one server on PORT (default 9005) serves the client and /api
 ```
 
 ## Scripts

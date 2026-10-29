@@ -13,12 +13,33 @@ import { logger } from '@/lib/logger.js';
 const docsDir = path.resolve(SERVER_ROOT, env.DOCS_DIR);
 
 /**
+ * With DOCS_REPO_TOKEN (servers): the PAT goes in as an HTTP auth header through GIT_CONFIG_*
+ * environment variables — never in the URL, the command line (visible in `ps`) or a config
+ * file — and prompts are off, so a bad token fails instead of waiting for input.
+ * Without it (dev machines): the git credential manager signs in as usual.
+ */
+function gitEnvironment(): NodeJS.ProcessEnv {
+  if (!env.DOCS_REPO_TOKEN) return process.env;
+  const basicAuth = Buffer.from(`:${env.DOCS_REPO_TOKEN}`).toString('base64');
+  return {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'http.extraHeader',
+    GIT_CONFIG_VALUE_0: `Authorization: Basic ${basicAuth}`,
+  };
+}
+
+/**
  * Runs git in this terminal, so its progress, errors and credential prompts are visible.
  * `core.longpaths` applies to this command only (nothing is written to the repo's config):
  * nested wiki pages pass Windows' 260-character path limit.
  */
 function runGit(args: string[]): void {
-  execFileSync('git', ['-c', 'core.longpaths=true', ...args], { stdio: 'inherit' });
+  execFileSync('git', ['-c', 'core.longpaths=true', ...args], {
+    stdio: 'inherit',
+    env: gitEnvironment(),
+  });
 }
 
 function main(): void {

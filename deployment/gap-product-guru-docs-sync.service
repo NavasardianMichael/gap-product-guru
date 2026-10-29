@@ -1,0 +1,37 @@
+# =============================================================================
+# systemd — pull the wiki and re-index it (`pnpm docs:sync` in production).
+# Install to /etc/systemd/system/gap-product-guru-docs-sync.service
+# Started nightly by gap-product-guru-docs-sync.timer, or by hand:
+#   sudo systemctl start gap-product-guru-docs-sync && journalctl -u gap-product-guru-docs-sync -f
+#
+# Runs the CURRENT release's compiled CLIs with the app's env file:
+#   1. dist/ingest/pullDocs.js — `git clone` once, then `git pull --ff-only` into DOCS_DIR
+#      ($APP_DIR/data/docs, outside every release), authenticated by DOCS_REPO_TOKEN.
+#      Clone and pull are the only git commands ever run on the docs repo (CLAUDE.md).
+#   2. dist/ingest/index.js — re-chunks changed pages and embeds chunks without a vector.
+#      Unchanged pages cost no Gemini calls; a quota-exhausted run resumes next time.
+# =============================================================================
+[Unit]
+Description=Gap Product Guru — pull the wiki and re-index it
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=michael
+Group=michael
+WorkingDirectory=/home/michael/apps/gap-product-guru/app/current/server
+EnvironmentFile=/home/michael/apps/gap-product-guru/shared/.env.server
+ExecStart=/usr/bin/node dist/ingest/pullDocs.js
+ExecStart=/usr/bin/node dist/ingest/index.js
+# Ingest waits out Gemini's per-minute limits; a full first index can take a while
+TimeoutStartSec=2h
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+# The wiki clone is the only thing written to disk
+ReadWritePaths=/home/michael/apps/gap-product-guru/data
+StandardOutput=journal
+StandardError=journal

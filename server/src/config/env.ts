@@ -18,6 +18,8 @@ const envSchema = z.object({
   // Application
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(9005),
+  // Production sets 127.0.0.1 so only nginx can reach the app; unset = all interfaces (dev)
+  HOST: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
   // Database
@@ -38,6 +40,8 @@ const envSchema = z.object({
   // `pnpm docs:pull` clones this repo into DOCS_DIR; an empty branch means the remote's default
   DOCS_REPO_URL: z.string().optional(),
   DOCS_REPO_BRANCH: z.string().optional(),
+  // Azure DevOps PAT (Code: Read) for servers without a git credential manager; empty = use it
+  DOCS_REPO_TOKEN: z.string().optional(),
   // The wiki in the browser — sources link to `<DOCS_WEB_URL>?pagePath=…`; empty = no links
   DOCS_WEB_URL: z.string().optional(),
   // Gemini's batch endpoint has historically capped requests at 100 items
